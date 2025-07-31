@@ -1,7 +1,24 @@
-# Train Neural Network for Quantum Network Entropy Prediction
-# Author: Noah Plant
-# Date: 2023-10-01
-# Description: This script trains a neural network to predict quantum network entropy based on density matrices.
+
+"""
+train_neural_network.py
+Author: Noah Plant
+Date: 2025-07-31
+
+
+This script trains a neural network to predict quantum network error parameters from quantum state and density matrix data.
+
+Workflow:
+---------
+1. Loads density matrices, quantum states, and error parameters from CSV files in the data directory.
+2. Preprocesses and combines the data into input (X) and target (T) arrays.
+3. Splits the data into training and test sets.
+4. Defines and compiles a Keras neural network model for multi-output regression.
+5. Trains the model with early stopping and model checkpointing.
+6. Evaluates the model on the test set, reporting loss, MAE, and R² scores.
+7. Saves the trained model, model architecture plot, training/validation plots, and a log file with all hyperparameters and results.
+
+Use this script to benchmark neural network performance on quantum network data and compare with classical machine learning baselines.
+"""
 
 # --------------------------------------------------------------
 ## Import necessary libraries
@@ -26,8 +43,8 @@ import io
 # --------------------------------------------------------------
 ## Set parameters
 # --------------------------------------------------------------
-batch_size = 32
-learning_rate = 0.003
+batch_size = 256
+learning_rate = 0.01
 num_epochs = 10_000
 patience = 500  # Early stopping patience
 
@@ -104,18 +121,18 @@ T_train, T_test = T[:8000], T[8000:]
 
 
 model = Sequential([
-    Dense(64, activation='relu', input_shape=(40,)),  # Input layer with 40 features (32 from density matrix, 8 from states)
+    Dense(64, activation='leaky_relu', input_shape=(40,)),  # Input layer with 40 features (32 from density matrix, 8 from states)
     BatchNormalization(),                              # Optional normalization layer
-    Dropout(0.3),                                      # Optional regularization
-    Dense(128, activation='relu'),                     # Hidden layer
+    Dropout(0.2),                                      # Optional regularization
+    Dense(128, activation='leaky_relu'),                     # Hidden layer
     BatchNormalization(),                              # Optional normalization layer
-    Dense(256, activation='relu'),                     # Hidden layer
+    Dense(256, activation='leaky_relu'),                     # Hidden layer
     BatchNormalization(),                              # Optional normalization layer
-    Dropout(0.3),                                      # Optional regularization
-    Dense(128, activation='relu'),                     # Hidden layer
+    Dropout(0.2),                                      # Optional regularization
+    Dense(128, activation='leaky_relu'),                     # Hidden layer
     BatchNormalization(),                              # Optional normalization layer
-    Dropout(0.3),
-    Dense(64, activation='relu'),                      # Hidden layer
+    Dropout(0.2),
+    Dense(64, activation='leaky_relu'),                      # Hidden layer
     Dense(9, activation='sigmoid'),  # restricts output to (0, 1)
     Lambda(lambda x: x * 0.5)        # scales output to (0, 0.5)                   # Output layer for regression
 ])
