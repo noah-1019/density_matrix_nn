@@ -15,8 +15,32 @@ from tensorflow.keras.metrics import MeanAbsoluteError
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.layers import Input, Dense, Flatten, Concatenate, BatchNormalization, Dropout
+from tensorflow.keras.layers import Lambda
+from tensorflow.keras import backend as K
+from sklearn.metrics import r2_score
 import matplotlib.pyplot as plt
 import pandas as pd
+import datetime
+import io
+
+# --------------------------------------------------------------
+## Set parameters
+# --------------------------------------------------------------
+batch_size = 32
+learning_rate = 0.001
+num_epochs = 10_000
+patience = 500  # Early stopping patience
+
+#----------------------------------------------------------------
+## Get Path information
+#----------------------------------------------------------------
+timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+folder_name = f"nn_models/nn_model_{timestamp}_epochs{num_epochs}"
+model_path = f'{folder_name}/model.keras'
+log_path = f'{folder_name}/training_log.txt'
+
+print(f"Model will be saved to {model_path}")
+print(f"Training logs will be saved to {log_path}")
 
 # --------------------------------------------------------------
 ## Load in data from CSV file
@@ -29,6 +53,11 @@ states = pd.read_csv('data/states.csv',header=None)
 # Load in errors (Targets)
 errors = pd.read_csv('data/errors.csv',header=None)
 
+# Load in test data
+test_density_matrix = pd.read_csv('data/test_density_matricies.csv',header=None)
+test_states = pd.read_csv('data/test_states.csv',header=None)
+test_errors = pd.read_csv('data/test_errors.csv',header=None)
+
 
 # --------------------------------------------------------------
 ## Preprocess the data
@@ -39,10 +68,20 @@ X_density = density_matrix.values
 X_states = states.values
 y_errors = errors.values
 
+## Convert test dataframes to numpy arrays
+X_test_density = test_density_matrix.values
+X_test_states = test_states.values
+y_test_errors = test_errors.values
+
+
 ## Seperate the data into inputs and targets
 X = np.concatenate([X_density, X_states], axis=1) 
 T = y_errors
 #print(f"Input shapes: {X.shape}, Target shape: {T.shape}"): # should be (1000, 40) and (1000, 9)
+
+## Convert the test data into inputs and targets
+X_test = np.concatenate([X_test_density, X_test_states], axis=1)
+T_test = y_test_errors
 
 ## Split the data into training and evaluation sets
 X_train, X_test = X[:800], X[800:]
@@ -62,7 +101,8 @@ model = Sequential([
     Dense(128, activation='relu'),                     # Hidden layer
     Dropout(0.2),
     Dense(64, activation='relu'),                      # Hidden layer
-    Dense(9, activation='linear')                      # Output layer for regression
+    Dense(9, activation='sigmoid'),  # restricts output to (0, 1)
+    Lambda(lambda x: x * 0.5)        # scales output to (0, 0.5)                   # Output layer for regression
 ])
 
 # Choose the activation functions
@@ -82,7 +122,15 @@ model = Sequential([
 # --------------------------------------------------------------
 ## Compile the model
 # --------------------------------------------------------------
-model.compile(loss=MeanSquaredError(), optimizer=Adam(), metrics=[MeanAbsoluteError()])
+# Create the optimizer
+optimizer = Adam(learning_rate=0.001)
+
+# Compile the model with loss function and metrics
+model.compile(loss=MeanSquaredError(), optimizer=optimizer, metrics=[MeanAbsoluteError()])
+
+# Print the model summary
+model.summary()
+
 
 # --------------------------------------------------------------
 ## Train the model
@@ -90,11 +138,16 @@ model.compile(loss=MeanSquaredError(), optimizer=Adam(), metrics=[MeanAbsoluteEr
 
 # Fit the model to the training data
 # Train the model and store the training history
+
+early_stopping = EarlyStopping(monitor='val_loss', patience=patience, restore_best_weights=True)
+model_checkpoint = ModelCheckpoint(f'{folder_name}/best_model.keras', save_best_only=True)
+
 history = model.fit(
     X_train, T_train,
     validation_data=(X_test, T_test),
-    epochs=3_000,
-    batch_size=64
+    epochs=num_epochs,
+    batch_size=batch_size,
+    callbacks=[early_stopping, model_checkpoint]
 )
 
 
@@ -103,13 +156,41 @@ history = model.fit(
 # --------------------------------------------------------------
 # Evaluate the model on the validation set
 # Print the evaluation metrics
+T_pred = model.predict(X_test)
+results = model.evaluate(X_test, T_test, verbose=1)
+for name, value in zip(model.metrics_names, results):
+    print(f"{name}: {value:.4f}")
+
+# Compute R² for each output (column)
+r2_per_output = r2_score(T_test, T_pred, multioutput='raw_values')
+for i, r2 in enumerate(r2_per_output):
+    print(f"R² for output {i}: {r2:.4f}")
+
+# Optionally, print the mean R² across all outputs
+print(f"Mean R² across all outputs: {np.mean(r2_per_output):.4f}")
+
 
 # --------------------------------------------------------------
 ## Save the model
 # --------------------------------------------------------------
+# Get current date and time for the filename
 
+model.save(model_path)
+print(f"Model saved to {model_path}")
 
-# Plot training & validation loss and MAE
+# Save the model architecture as an image
+plot_model(model, to_file=f'{folder_name}/model_architecture.png', show_shapes=True, show_layer_names=True)
+print(f"Model architecture saved to {folder_name}/model_architecture.png")
+
+# save the training logs.
+# Capture model summary as a string
+stream = io.StringIO()
+model.summary(print_fn=lambda x: stream.write(x + "\n"))
+model_summary_str = stream.getvalue()
+stream.close()
+
+# Save the training & validation loss and MAE plots as an image
+plot_filename = f"{folder_name}/training_plot.png"
 plt.figure(figsize=(12,5))
 plt.subplot(1,2,1)
 plt.plot(history.history['loss'], label='Train Loss')
@@ -128,4 +209,33 @@ plt.legend()
 plt.title('Mean Absolute Error')
 
 plt.tight_layout()
-plt.show()
+plt.savefig(plot_filename)
+
+# Add the plot filename to your log entry
+log_entry = f"""
+==========================
+Timestamp: {timestamp}
+Model file: {model_path}
+
+Hyperparameters:
+- Batch size: {batch_size}
+- Learning rate: {learning_rate}
+- Num epochs: {num_epochs}
+- Early stopping patience: {patience}
+
+Model Summary:
+{model_summary_str}
+
+R² per output: {r2_per_output}
+Mean R²: {np.mean(r2_per_output):.4f}
+
+Training/Validation plot: {plot_filename}
+==========================
+
+"""
+
+# Save the log as a new file
+
+with open(log_path, "w") as f:
+    f.write(log_entry)
+print(f"Training log saved to {log_path}")

@@ -1,12 +1,11 @@
 import numpy as np
 import random
-import itertools
 import helper_functions as hf
 import csv
-import time
+
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-data_points = 2_00  # Set to desired number of data points
+data_points = 10_000  # Set to desired number of data points
 
 def generate_one(trial):
     # Generate random quantum states
@@ -36,20 +35,20 @@ if __name__ == "__main__":
     
 
     # Save Data to CSV files
-    with open('data/test_density_matricies.csv', 'w', newline='') as f:
+    with open('data/density_matricies.csv', 'w', newline='') as f:
         writer = csv.writer(f)
         for matrix in density_matricies:
             row = np.concatenate([matrix.real.flatten(), matrix.imag.flatten()])
             writer.writerow(row)
 
-    with open('data/test_states.csv', 'w', newline='') as f:
+    with open('data/states.csv', 'w', newline='') as f:
         writer = csv.writer(f)
         for state in all_states:
             row = np.concatenate([state[0].real.flatten(), state[0].imag.flatten(),
                                   state[1].real.flatten(), state[1].imag.flatten()])
             writer.writerow(row)
 
-    with open('data/test_errors.csv', 'w', newline='') as f:
+    with open('data/errors.csv', 'w', newline='') as f:
         writer = csv.writer(f)
         for error in all_errors:
             row = np.concatenate(error).flatten()

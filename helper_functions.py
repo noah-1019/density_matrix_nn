@@ -202,35 +202,7 @@ def simulate_network(states, errors, measurement_bases):
     return result_a
 
 
-    """
-    Constructs the density matrix from the measurement outcomes and their uncertainties.
 
-    Parameters
-    ----------
-    states : list of np.ndarray
-        List containing the quantum states of the two qubits.
-    measurement_bases : list of str
-        List of measurement bases for each qubit.
-    expected_values : list of float
-        Expected values for each measurement outcome.
-    uncertainties : list of float
-        Uncertainties associated with each expected value.
-
-    Returns
-    -------
-    np.ndarray
-        The reconstructed density matrix.
-    """
-    density_matrix = np.zeros((4, 4), dtype=complex)
-    
-    for i, basis in enumerate(measurement_bases):
-        expected_value = expected_values[i]
-        pauli_matrix = np.kron(pauli_dict[basis[0]], pauli_dict[basis[1]])
-        density_matrix += expected_value * pauli_matrix
-    
-    density_matrix /= 4  # for two qubits
-
-    return density_matrix
 
 
 
