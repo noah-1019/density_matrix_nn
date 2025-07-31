@@ -27,9 +27,11 @@ import io
 ## Set parameters
 # --------------------------------------------------------------
 batch_size = 32
-learning_rate = 0.001
+learning_rate = 0.003
 num_epochs = 10_000
 patience = 500  # Early stopping patience
+
+
 
 #----------------------------------------------------------------
 ## Get Path information
@@ -41,6 +43,12 @@ log_path = f'{folder_name}/training_log.txt'
 
 print(f"Model will be saved to {model_path}")
 print(f"Training logs will be saved to {log_path}")
+
+
+
+
+
+
 
 # --------------------------------------------------------------
 ## Load in data from CSV file
@@ -84,10 +92,10 @@ X_test = np.concatenate([X_test_density, X_test_states], axis=1)
 T_test = y_test_errors
 
 ## Split the data into training and evaluation sets
-X_train, X_test = X[:800], X[800:]
-T_train, T_test = T[:800], T[800:]
-#print(f"Training set shape: {X_train.shape}, {T_train.shape}"): # Should be (800, 40) and (800, 9)
-#print(f"Test set shape: {X_test.shape}, {T_test.shape}"): # Should be (200, 40) and (200, 9)
+X_train, X_test = X[:8000], X[8000:]
+T_train, T_test = T[:8000], T[8000:]
+#print(f"Training set shape: {X_train.shape}, {T_train.shape}"): # Should be (8000, 40) and (8000, 9)
+#print(f"Test set shape: {X_test.shape}, {T_test.shape}"): # Should be (2000, 40) and (2000, 9)
 
 # --------------------------------------------------------------
 ## Create the neural network model
@@ -97,9 +105,16 @@ T_train, T_test = T[:800], T[800:]
 
 model = Sequential([
     Dense(64, activation='relu', input_shape=(40,)),  # Input layer with 40 features (32 from density matrix, 8 from states)
-    Dropout(0.2),                                      # Optional regularization
+    BatchNormalization(),                              # Optional normalization layer
+    Dropout(0.3),                                      # Optional regularization
     Dense(128, activation='relu'),                     # Hidden layer
-    Dropout(0.2),
+    BatchNormalization(),                              # Optional normalization layer
+    Dense(256, activation='relu'),                     # Hidden layer
+    BatchNormalization(),                              # Optional normalization layer
+    Dropout(0.3),                                      # Optional regularization
+    Dense(128, activation='relu'),                     # Hidden layer
+    BatchNormalization(),                              # Optional normalization layer
+    Dropout(0.3),
     Dense(64, activation='relu'),                      # Hidden layer
     Dense(9, activation='sigmoid'),  # restricts output to (0, 1)
     Lambda(lambda x: x * 0.5)        # scales output to (0, 0.5)                   # Output layer for regression
@@ -115,7 +130,9 @@ model = Sequential([
 # - ReLU activation is commonly used for hidden layers to introduce non-linearity
 
 # Output Layer: Linear (for regression)
-# - Output layer uses linear activation to predict continuous values (errors)
+# - Output layer uses a sigmoid activation function to restrict the output to (0, 1)
+# - A Lambda layer is used to scale the output to (0, 0.5) for the error values
+# - This is suitable for regression tasks where the target values are continuous 
 
 
 
@@ -123,7 +140,7 @@ model = Sequential([
 ## Compile the model
 # --------------------------------------------------------------
 # Create the optimizer
-optimizer = Adam(learning_rate=0.001)
+optimizer = Adam(learning_rate=learning_rate)
 
 # Compile the model with loss function and metrics
 model.compile(loss=MeanSquaredError(), optimizer=optimizer, metrics=[MeanAbsoluteError()])
